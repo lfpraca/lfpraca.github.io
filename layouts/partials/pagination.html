@@ -1,0 +1,17 @@
+{{- with .Paginator }}
+
+<div style="display: flex;">
+  {{- with .Prev }}
+  <div  style="flex: 1 1 0%">
+    <a href="{{ .URL }}" aria-label="Previous" class="page-link" role="button"><span aria-hidden="true">&lt; Página Anterior</span></a> {{/* TODO: i18n */}}
+  </div>
+  {{- end }}
+
+  {{- with .Next }}
+  <div  style="flex: 1 1 0%; text-align: right">
+    <a href="{{ .URL }}" aria-label="Next" class="page-link" role="button"><span aria-hidden="true">Próxima Página &gt;</span></a> {{/* TODO: i18n */}}
+  </div>
+  {{- end }}
+</div>
+
+{{- end }}

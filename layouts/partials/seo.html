@@ -1,0 +1,23 @@
+{{ if .IsPage }}
+{{ if eq .Type "posts" }}
+<script type="application/ld+json">
+ {
+     "@context": "http://schema.org",
+     "@type": "BlogPosting",
+     {{ with .Params.author | default .Site.Params.author }}
+     "creator": {
+         "@type": "Person",
+         "name": {{ . }},
+     },
+     {{ end }}
+     "dateCreated": {{ .PublishDate | time.Format "2006-01-02T15:04:05Z07:00" }},
+     "dateModified": {{ .Lastmod | time.Format "2006-01-02T15:04:05Z07:00" }},
+     "datePublished": {{ .Date | time.Format "2006-01-02T15:04:05Z07:00" }},
+     "headline": {{ .Title }},
+     "inLanguage": {{ .Language.LanguageCode }},
+     "name": {{ .Title }},
+     "wordCount": {{ .WordCount }},
+ }
+</script>
+{{ end }}
+{{ end }}

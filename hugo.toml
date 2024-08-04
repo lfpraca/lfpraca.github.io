@@ -1,0 +1,18 @@
+baseURL = 'https://lfpraca.github.io/'
+title = 'Blog Lfpraca'
+defaultContentLanguage = 'pt'
+
+[languages]
+[languages.pt]
+languageCode = 'pt-BR'
+languageDirection = 'ltr'
+languageName = 'Português'
+weight = 1
+
+[markup]
+[markup.highlight]
+#style = 'catppuccin-macchiato'
+style = 'gruvbox'
+#style = 'onedark'
+#style = 'doom-one2'
+#style = 'solarized-dark'

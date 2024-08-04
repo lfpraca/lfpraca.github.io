@@ -1,0 +1,22 @@
+{{ define "main" }}
+<article>
+  <section>
+    {{- .Content -}}
+    {{ with .OutputFormats.Get "RSS" }}
+    <div style="width: 100%; text-align: right">
+      <a href="{{ .RelPermalink }}">RSS</a>
+    </div>
+    {{ end }}
+  </section>
+  <section>
+    <div style="display: flex; flex-direction: column; gap: 2rem; margin-bottom: 3rem">
+      {{ range .Paginator.Pages }}
+      <div>
+        {{ .Render "summary" }}
+      </div>
+      {{ end }}
+    </div>
+  </section>
+  {{- partial "pagination.html" . -}}
+</article>
+{{ end }}

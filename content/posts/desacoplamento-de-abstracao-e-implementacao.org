@@ -1,0 +1,300 @@
+#+TITLE: Desacoplamento de Abstração e Implementação: Herança vs. Composição
+#+DATE: 2024-07-28T17:41:41-03:00
+#+DRAFT: false
+
+Um dos pontos centrais de OOP tradicional é abstração por meio de herança, mas conforme sistemas se tornam mais complexos e requerimentos mudam, a acoplagem de abstração e implementação se torna um problema.
+
+# more
+
+* Introdução
+
+Em linguagens como Java e C#, existem basicamente duas formas de abstrair implementações distintas de forma a permitir seu uso genérico, onde o tipo específico não é definido estritamente.
+
+** Herança
+
+#+BEGIN_SRC java
+public class ClasseUm {
+    public void dizerNome() {
+        System.out.println("ClasseUm");
+    }
+}
+
+public class ClasseDois extends ClasseUm {
+    @Override
+    public void dizerNome() {
+        System.out.println("ClasseDois");
+    }
+}
+
+public class ClasseConsumidora {
+    private ClasseUm instancia;
+
+    public void chamarDizerNome() {
+        this.instancia.dizerNome();
+    }
+}
+#+END_SRC
+
+Nesse exemplo =chamarDizerNome()= pode causar tanto a impressão de "ClasseUm" como de "ClasseDois". Embora =instancia= seja do tipo "ClasseUm", qualquer classe que herde dela pode ser usada como se fosse ela.
+
+** Interface
+
+Interfaces definem um contrato que as classes devem seguir, mas não fornecem uma implementação concreta.
+
+#+BEGIN_SRC java
+public interface Pokemon {
+    public void dizerNome();
+}
+
+public class ClasseUm implements Pokemon {
+    public void dizerNome() {
+        System.out.println("ClasseUm");
+    }
+}
+
+public class ClasseDois implements Pokemon {
+    public void dizerNome() {
+        System.out.println("ClasseDois");
+    }
+}
+
+public class ClasseConsumidora {
+    private Pokemon instancia;
+
+    public void chamarDizerNome() {
+        this.instancia.dizerNome();
+    }
+}
+#+END_SRC
+
+Da mesma forma, nesse exemplo, =chamarDizerNome()= terá comportamento diferente dependendo do tipo concreto de =instancia=, porém o método sabe como chamar o método =dizerNome()= para qualquer classe que implemente a interface =Pokemon=.
+
+** A Diferença
+
+Tanto a abstração quanto a herança nos permitiu chegar ao objetivo de usar =dizerNome()= no método =chamarDizerNome()= de =ClasseConsumidora= sem conhecer o tipo concreto de =instancia= porém existem duas grandes diferenças importantes:
+
++ Interfaces não definem uma hierarquia como a herança (explicarei em detalhe mais a frente).
++ Interfaces definem apenas um contrato, não implementação.
+
+Quando uma classe herda da outra, todas as propriedades da classe base são herdadas, incluindo campos e métodos, com qualquer nível de acesso. Embora as palavras chave de acesso do Java nem sempre permitam que a classe derivada acesse todas as propriedades da classe base, elas estão todas presentes. Isso significa que além do contrato com os invocadores, detalhes da implementação também são herdados.
+
+Essa herança de implementação pode ser um facilitador no primeiro momento, mas quando começamos a ter diversidade nos implementadores, começam a vir problemas com esse acoplamento.
+
+* O problema
+
+Vamos expandir nosso exemplo para algo um pouco mais complexo e realista. Tenhamos um vídeo-jogo que de tempos em tempos vai armazenar o seu estado em um log para poder ser analizado depois. Inicialmente fazemos uma implementação escrevendo XML para um arquivo.
+
+#+BEGIN_SRC java
+public class XmlFileLogger {
+    private string nomeArquivo;
+
+    public void escreverLog(GameState gameState) {
+        string dados = serializarDados(gameState);
+        writeToFile(dados);
+    }
+
+    private string serializarDados(GameState gameState) {
+        // ...
+    }
+
+    private void escreverParaArquivo(string dados) {
+        // ...
+    }
+}
+#+END_SRC
+
+Até aqui tudo bem, mas depois de um tempo decidimos que queremos salvar o log em JSON, mas ainda temos que manter a compatibilidade com o log antigo em XML, pelo menos por agora.
+
+#+BEGIN_SRC java
+public class JsonFileLogger {
+    private string nomeArquivo;
+
+    public void escreverLog(GameState gameState) {
+        string dados = serializarDados(gameState);
+        writeToFile(dados);
+    }
+
+    private string serializarDados(GameState gameState) {
+        // ...
+    }
+
+    private void escreverParaArquivo(string dados) {
+        // ...
+    }
+}
+#+END_SRC
+
+Esse código é quase igual a implementação do logger em XML, então vamos extrair o comportamento em comum para uma classe base.
+
+#+BEGIN_SRC java
+public class BaseLogger {
+    private string nomeArquivo;
+
+    public void escreverLog(GameState gameState) {
+        string dados = serializarDados(gameState);
+        escreverParaArquivo(dados);
+    }
+
+    protected string serializarDados(GameState gameState) {
+        throw new UnsupportedOperationException("Não implementado");
+    }
+
+    protected void escreverParaArquivo(string dados) {
+        // ...
+    }
+}
+
+public class XmlFileLogger extends BaseLogger {
+    @Override
+    protected string serializarDados(GameState gameState) {
+        // ...
+    }
+}
+
+public class JsonFileLogger extends BaseLogger {
+    @Override
+    protected string serializarDados(GameState gameState) {
+        // ...
+    }
+}
+#+END_SRC
+
+Depois de um tempo, chegou um novo requerimento para ter a opção de além de salvar para um arquivo, fazer uma chamada HTTP para um serviço externo passando o JSON dos dados para que esse faça o tratamento necessário.
+
+#+BEGIN_SRC java
+public class JsonHttpLogger extends BaseLogger {
+    private HttpClient client;
+
+    @Override
+    public void escreverLog(GameState gameState) {
+        string dados = serializarDados(gameState);
+        enviarDados(dados);
+    }
+
+    @Override
+    protected string serializarDados(GameState gameState) {
+        // ...
+    }
+
+    private void enviarDados(string dados) {
+        // ...
+    }
+}
+#+END_SRC
+
+Esse requerimento saiu do que tínhamos esperado quando criamos a classe base, com isso o =JsonHttpLogger= ficou com o campo =nomeArquivo=, que vai ter que ser preenchido com algum valor qualquer e um método =escreverParaArquivo= que temos que saber que não pode ser chamado, então temos que criar uma nova base geral e uma que herda desta para as classes que escrevem para arquivo.
+
+#+BEGIN_SRC java
+public class BaseLogger {
+    public void escreverLog(GameState gameState) {
+        // ...
+    }
+
+    public string serializarDados(GameState gameState) {
+        throw new UnsupportedOperationException("Não implementado");
+    }
+}
+
+public class BaseFileLogger extends BaseLogger {
+    private string nomeArquivo;
+    
+    @Override
+    public void escreverLog(GameState gameState) {
+        // ...
+    }
+
+    protected void escreverParaArquivo(string dados) {
+        // ...
+    }
+}
+
+public class JsonHttpLogger extends BaseLogger {
+    // ...
+}
+#+END_SRC
+
+Nesse ponto, conseguimos ver que nossa organização de classes se tornou uma estrutura hierárquica, =BaseLogger= é a classe raiz, que tem como filhos =BaseFileLogger= e =JsonHttpLogger=. Por sua vez, =BaseFileLogger= tem como filhos =XmlFileLogger= e =JsonFileLogger=.
+
+O contrato público de todas essas classes é o mesmo, um único método públic =escreverLog=, para o chamador, isso é tudo o que importa, mas tivemos que dividir essas classes base por causa da implementação.
+
+Mas voltemos nossa atenção para o fato de que nesse exemplo temos a característica que duas das classes compartilham a implementação da serialização (=JsonFileLogger= e =JsonHttpLogger=) e também temos duas classes que compartilham a implementação da persistência (=XmlFileLogger= e =JsonFileLogger=) mas devido à natureza hierárquica da abstração por herança, onde uma classe só pode herdar de uma única classe base, tivemos que escolher entre um deles. Nesse caso escolhemos agrupar pela característica de persistência, mas isso significa que a implementação da serialização para JSON teve que ser duplicada.
+
+Além disso, cada vez que tivemos que extrair as classes base, tivemos que alterar todos os descendentes dele para refletir a nova estrutura hierárquica; quando esta se torna grande, essas mudanças se tornam cada vez mais trabalhosas de fazer.
+
+* Uma Alternativa Melhor
+
+Começamos definindo uma interface =Logger=, especificando somente o contrato com o invocador e nenhum detalhe de implementação. O jogo vai poder receber qualquer implementação dessa interface e vai conseguir fazer o que precisa, uma vez que ele precisa saber somente como chamar o método =escreverLog=.
+
+#+BEGIN_SRC java
+public interface Logger {
+    public void escreverLog(GameState gameState);
+}
+#+END_SRC
+
+Depois implementamos as classes de comportamento compartilhado, que serão usadas nos nossos loggers.
+
+#+BEGIN_SRC java
+public class FileWriter {
+    private string nomeArquivo;
+
+    public void escreverParaArquivo {
+        // ...
+    }
+}
+
+public class JsonSerializer {
+    public void serializarDados {
+        // ...
+    }
+}
+#+END_SRC
+
+#+BEGIN_SRC java
+public class XmlFileLogger implements Logger {
+    private FileWriter fileWriter;
+    
+    public void escreverLog(GameState gameState) {
+        string dados = serializarDados(gameState);
+        this.fileWriter.escreverParaArquivo(dados);
+    }
+
+    private string serializarDados(GameState gameState) {
+        // ...
+    }
+}
+
+public class JsonFileLogger implements Logger {
+    private FileWriter fileWriter;
+    private JsonSerializer jsonSerializer;
+    
+    public void escreverLog(GameState gameState) {
+        string dados = this.jsonSerializer.serializarDados(gameState);
+        this.fileWriter.escreverParaArquivo(dados);
+    }
+}
+
+public class JsonHttpLogger implements Logger {
+    private JsonSerializer jsonSerializer;
+    
+    public void escreverLog(GameState gameState) {
+        string dados = this.jsonSerializer.serializarDados(gameState);
+        enviarDados(dados);
+    }
+
+    private void enviarDados(string dados) {
+        // ...
+    }
+}
+#+END_SRC
+
+Esse padrão é tipicamente conhecido como composição, onde cada classe é composta de classes injetadas de forma modular que provêm seu comportamento.
+
+Por sua vez, o padrão de injetar instâncias de classes que provêm o comportamento é conhecido como injeção de dependência, e embora existam bibliotecas para facilitar seu uso, como o Spring Framework para Java, seu uso não é dependente delas, bastando apenas que de alguma forma essas dependências sejam incluídas na construção da classe.
+ 
+Dessa forma cada classe pode receber exatamente o comportamento que precisa, sem ter que trazer comportamento inutilizado e sem precisar de relações hierárquicas complexas, ou por vezes até impossíveis. Isso também significa que pudemos melhor segregar as responsabilidades da abstração do =Logger= e da implementação dele, o contrato é definido apenas na interface, e o comportamento compartilhado é definido apenas nas classes injetadas, com essa atomicidade, mudanças em um não interferem no outro.
+
+* Concluindo
+
+Herança e composição são duas formas de atingir o mesmo objetivo de compartilhar contrato e implementação, porém com a importante diferença de que a herança acopla estes dois em um único pacote.
+
+Espero que com o exemplo do artigo eu tenha conseguido demonstrar o problema que isso traz e como embora a herança pareça algo bonito no papel, apresenta complicações desnecessárias em aplicações no mundo real; e como a composição, por outro lado, permite mais flexibilidade para a criação, manutenção e desenvolvimento do sistema.
