@@ -82,7 +82,7 @@ Essa herança de implementação pode ser um facilitador no primeiro momento, ma
 
 * O problema
 
-Vamos expandir nosso exemplo para algo um pouco mais complexo e realista. Tenhamos um vídeo-jogo que de tempos em tempos vai armazenar o seu estado em um log para poder ser analizado depois. Inicialmente fazemos uma implementação escrevendo XML para um arquivo.
+Vamos expandir nosso exemplo para algo um pouco mais complexo e realista. Tenhamos um vídeo-jogo que de tempos em tempos vai armazenar o seu estado em um log para poder ser analisado depois. Inicialmente fazemos uma implementação escrevendo XML para um arquivo.
 
 #+BEGIN_SRC java
 public class XmlFileLogger {
