@@ -1,0 +1,106 @@
+#+TITLE: Herança vs. Composição na programação: Ser ou Ter?
+#+DATE: 2024-07-28T17:41:41-03:00
+#+MODIFIED: 2024-08-18T14:33:11-03:00
+#+DRAFT: false
+
+Um dos pontos centrais de OOP tradicional é polimorfismo por meio de herança, mas conforme sistemas se tornam mais complexos e requerimentos mudam, a acoplagem desse polimorfismo com a implementação se torna um problema.
+
+# more
+
+* Herança
+
+Tradicionalmente em linguagens de programação orientada a objetos, o polimorfismo se dá por meio da herança, onde se uma =ClasseB= herda de uma =ClasseA=, qualquer classe que conheça a =ClasseA= pode interagir com a =ClasseB= ou qualquer outra classe que herde diretamente ou indiretamente da =ClasseA=. Por a herança trazer para as classes filhas todas as propriedades e métodos da classe pai, podemos garantir que uma chamada na classe pai vai também ser possível em qualquer classe descendente dela.
+
+Usando o exemplo clássico dos animais, vamos montar uma hierarquia com a classe base =Animal=, com filhos =Peixe=, que consegue nadar, e =Ave=, que consegue voar.
+
+#+BEGIN_SRC java
+public class Animal {
+    private String nomeCientifico;
+
+    public String getNomeCientifico() {
+        return nomeCientifico;
+    }
+}
+
+public class Peixe extends Animal {
+    // ...
+    public void nadar() {
+        //...
+    }
+}
+
+public class Ave extends Animal {
+    // ...
+    public void voar() {
+        //...
+    }
+}
+#+END_SRC
+
+Até aqui tudo bem, podemos fazer nossos peixes herdar de =Peixe= e nossas aves herdar de =Ave=. Quando chega a hora de adicionar um pato, fica um pouco mais complicado. O pato é uma ave, então ele deveria herdar de =Ave=, mas ele também nada, então poderíamos tentar justificar que ele herde de =Peixe=; mas isso, além de ir contra a semântica da herança, que tipicamente é explicada como "uma classe filho é uma classe pai" (por exemplo "um peixe é um animal"), também poderia introduzir problemas no futuro, já que peixes tem outras características distintas de um pato que podemos incluir na classe =Peixe= no futuro.
+
+Mas em linguagens como java e C#, qualquer uma das classes escolhidas para ser herdada para o pato implicaria na reimplementação de um dos métodos =nadar()= ou =voar()=, já que não podemos herdar das duas clases ao mesmo tempo. E mesmo em outras linguagens onde múltipla herança é permitido, utilizá-la é comummente evitado, devido à complexidade que isso cria para dar manutenção e por causa do problema do diamante, onde duas classes que herdam de uma classe base (como =Peixe= e =Ave= herdam de =Animal=) podem ter alterado a implementação da classe base, e ao convergir elas em uma herança múltipla, criam-se dificuldades para a implementação e uso, devido a necessidade de desambiguar entre as implementações.
+
+Ao não herdarmos de =Peixe= para o nosso pato, foi gerado um problema adicional, mesmo que =nadar()= seja reimplementado manualmente para o pato, um ponto do código que espera um =Peixe= para usar o método =nadar()= dele não vai poder receber o pato, já que o método =nadar()= dele é uma implementação diferente, então quem conhece a classe =Peixe= não vai saber interagir com o =nadar()= do pato. Isso aconteceria mesmo se extraíssemos a capacidade de nadar para uma class =AnimalQueNada= por exemplo, a capacidade de utilizar polimorfismo fica diretamente acoplada com a herança.
+
+* Composição
+
+A composição, por outro lado, separa o polimorfismo e o compartilhamento de comportamento. Diferentemente da herança, onde uma classe esperaria uma instância de =Peixe= ou que herda dela para ter acesso ao método =nadar()=, utilizando composição, seria preferível usar uma interface que define a capacidade de nadar, e fazer com que todas as classes que tem essa capacidade implementem ela, e assim para as demais capacidades.
+
+#+BEGIN_SRC java
+public interface PossueNomeCientifico {
+    public String getNomeCientifico();
+}
+
+public interface ConsegueNadar {
+    public void nadar();
+}
+
+public interface ConsegueVoar {
+    public void voar();
+}
+#+END_SRC
+
+Dessa forma, o pato pode implementar tanto =ConsegueNadar= quanto =ConsegueVoar= sem problema.
+
+Há uma mudança semântica importante trocando de herança para composição que é que o pato não =é= =ConsegueNadar=, e sim =implementa= =ConsegueNadar=, ou seja, ele =tem= a capacidadde de nadar; a definição e o polimorfismo de uma classe se tornam coisas separadas.
+
+Mas ao utilizarmos a interface dessa forma, desacoplamos também o comportamento, o que significa que embora tenhamos especificado que todas as classes que implementam =ConsegueNadar= possuem o método =nadar()=, cada classe vai ter que prover sua implementação. Nesse exemplo simples, poderíamos prover uma implementação padrão na própria interface, mas isso nem sempre é possível ou prático por causa das dependências.
+
+** Dependências
+
+Podemos ver as dependências de duas formas, como coisas que são herdadas, ou como coisas que são utilizadas. Usando o exemplo de uma classe para fazer requisições a um micro-serviço REST, podemos fazer essa classe ter acesso aos métodos HTTP (GET, POST, etc.) herdando de um HttpClient ou utilizando um HttpClient. No caso da herança, teríamos acesso aos métodos HTTP porque eles passam a fazer parte da classe. No caso da composição, teríamos acesso aos métodos HTTP porque eles são expostos pelo HttpClient que é uma propriedade, um componente que =compõe= a classe.
+
+#+BEGIN_SRC java
+class class ComunicacaoServico {
+    private HttpClient httpClient;
+
+    public ComunicacaoServico() {
+        httpClient = new HttpClient();
+    }
+    // ...
+}
+#+END_SRC
+
+Agora os métodos na classe tem acesso a ~this.httpClient.get~, ~this.httpClient.post~, etc. Mas poderíamos também querer ter uma implementação comum para as requisições em nosso programa, que a maioria dos métodos vai precisar de implementar e seria muito repetitivo e difícil de manter se fosse implementado manualmente em todo lugar, seguindo esse exemplo, poderíamos quere adicionar um header de autenticação nas requisições. Para isso pode, da mesma forma, ser incluído um novo componente contendo a implementação comum.
+
+#+BEGIN_SRC java
+class class ComunicacaoServico {
+    private HttpClient httpClient;
+    private HttpComum httpComum;
+
+    public ComunicacaoServico() {
+        httpClient = new HttpClient();
+        httpComum = new HttpComum(httpClient);
+    }
+    // ...
+}
+#+END_SRC
+
+Dessa forma também abrimos a possibilidade para deixar nossas dependências polimórficas, ao invés de dependermos na implementação concreta do =HttpClient=, poderíamos depender de qualquer classe que tem o que precisamos, por exemplo, poderíamos criar uma interface =HttpClientInterface= e ter a classe =ComunicacaoServico= dependendo dela. Dessa forma, ao invés da classe instanciar diretamente suas dependências no construtor, estas seriam recebidas de fora. Isso é justamente o que =HttpComum= está fazendo nesse exemplo, o construtor da classe =HttpComum= está recebendo uma instância do =HttpClient= para ser usada como dependência dela. Esse é o conceito de injeção de dependências, onde as dependências não são instanciadas internamente, mas sim =injetadas= de fora.
+
+* A Diferença
+
+Como vimos, tudo o que é possível com a herança também é possível com a composição. Além disso, a desvinculação de implementação e polimorfismo que a composição traz proporciona mais flexibilidade na modelagem e uso das classes. Com a herança, classes são categorizadas hierarquicamente em relação ao que elas são, enquanto com a composição, elas são classificadas baseadas em quais características elas implementam.
+
+Embora em casos simples a herança funcione bem, algum novo requerimento que saia um pouco do esperado inicialmente pode requerer uma refatoração considerável ou até nem ser possível de ser espressado via herança.
