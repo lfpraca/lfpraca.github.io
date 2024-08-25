@@ -1,0 +1,88 @@
+#+TITLE: Como Usar a API REST da Oracle Cloud em Qualquer Linguagem
+#+DATE: 2024-08-24T10:48:37-03:00
+#+DRAFT: false
+
+A Oracle Cloud Infrastructure possui SDKs para seis das principais linguagens de programação dos dias de hoje. Nesse artigo vou explorar como usar a API REST da OCI diretamente para linguagens que não possuem um SDK oficial.
+
+# more
+
+* Referências Oficiais
+
+Algumas referências oficiais importantes de se ter em mãos são a [[https://docs.oracle.com/en-us/iaas/api/][referência da API e endpoints]] e a documentação de [[https://docs.oracle.com/en-us/iaas/Content/API/Concepts/signingrequests.htm][assinaturas de requisições]].
+
+* Pre-requisitos
+
+Para fazer a requisição, é necessário ter uma chave de API cadastrada na OCI. A chave que é cadastrada na OCI é uma chave pública de um par de chaves RSA de pelo menos 2048 bits que pode ser gerado no console da OCI ou localmente usando ferramentas como o openssl.
+
+De ambas as formas, o cadastro é feito na seção de =API Keys= no seu perfil da OCI.
+
+* Implementação
+
+A API REST da OCI é uma API REST como qualquer outra, a grande questão que traz dificuldade é a assinatura de requisições.
+
+A assinatura vai no header =authorization= e deve ter o valor similar ao exemplo a seguir sem as quebras de linha:
+
+#+BEGIN_SRC
+Signature version="1",headers="date (request-target) host",
+keyId="ocid1.tenancy.oc1..<unique_id>/ocid1.user.oc1.<unique_id>/<your_fingerprint>",
+algorithm="rsa-sha256",signature="<your_signature>"
+#+END_SRC
+
+=Signature= é um prefixo para especificar o tipo de =authorization=
+
+=version= se refere a versão do esquema de assinatura da OCI, por enquanto, ele deve ser sempre "1" ou não estar presente, neste caso é presumido ser a versão atual, que no momento é "1".
+
+=headers= são os headers (cabeçalhos) da requisição que fazem parte da assinatura (explicado na próxima seção).
+
+=keyId= é a identificação da chave RSA utilizada para assinar a requisição. Ela segue o formato "<tenancy_id>/<user_id>/<key_fingerprint>". Depois do upload ou geração da chave no console da OCI, é mostrado um arquivo de configuração de exemplo onde todos os valores podem ser facilmente encontrados.
+
+=algorithm= deve sempre ser "rsa-sha256".
+
+=signature= a assinatura em si. Explicado na próxima seção.
+
+* Assinatura
+
+A assinatura é feita utilizando o algoritmo rsa-sha256, onde é obtido o hash sha256 de um valor e ele subsequentemente é assinado usando uma chave privada rsa.
+
+O cálculo do valor a ser assinado se dá montando uma string contendo no mínimo os headers (cabeçalhos) =date= ou =x-date=, =host=, =(request-target)=. A ordem não é importante, mas deve ser a mesma da especificada no valor de =headers= no header =authorization=, descrito na seção anterior.
+
+O header =(request-target)= é um header especial que não é realmente incluído como um header na requisição. Ele é o método convertido para letras minúsculas, um espaço e o path junto com as queries da requisição. Ou seja, para uma requisição GET para =host/path/?query=value=, seu valor seria =get /path/?query=value=.
+
+É importante destacar que o método deve sempre ser convertido para letras minúsculas, caso contrário a autorização falhará. O nome dos headers devem também sempre ser em minúsculo.
+
+Em caso de requisições POST e PUT, devem ser também incluídos os headers =x-content-sha256=, =content-type= e =content-length=, exceto em casos de exceção descritos na documentação.
+
+Esses headers devem ser concatenados com um line feed (=\n=) entre eles. Esse line feed não deve estar presente nem no início nem no final, somente entre os headers.
+
+O valor de cada header entre os line feeds se na notação padrão de header http: "<nome>: <valor>".
+
+Obtido o valor a ser assinado, é necessário obter o hash256 da string, assinar com a chave privada cadastrada na OCI, codificar a assinatura em Base64 e adicionar esse valor em Base64 ao header =authorization= na posição signature, conforme descrito na seção anterior.
+
+Exemplo em rust:
+
+#+BEGIN_SRC rust
+use base64::prelude::*;
+use rsa::{
+    pkcs1v15::SigningKey,
+    pkcs8::DecodePrivateKey,
+    sha2::Sha256,
+    signature::{SignatureEncoding, Signer},
+    RsaPrivateKey,
+};
+
+let signing_string = format!("date: {date}\n(request-target): {method_lowercase} {path_and_query}\nhost: {host}");
+
+let private_key_pem = fs::read_to_string(key_path)?;
+
+let private_key = RsaPrivateKey::from_pkcs8_pem(&private_key_pem)?;
+let signing_key = SigningKey::<Sha256>::new(private_key);
+
+let signature = signing_key.sign(signing_string.as_bytes());
+let signature = BASE64_STANDARD.encode(signature.to_bytes());
+
+format!(
+    r#"Signature version="1",keyId="{tenancy_id}/{user_id}/{key_fingerprint}",algorithm="rsa-sha256",headers="date (request-target) host",signature="{signature}""#,
+)
+#+END_SRC
+
+Esse exemplo retorna a string que deve ser adicionada como o valor do header =authorization= da requisição.
