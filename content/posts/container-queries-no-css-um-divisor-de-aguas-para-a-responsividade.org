@@ -1,0 +1,92 @@
+#+TITLE: Container Queries No CSS: Um Divisor De Águas Para a Responsividade
+#+DATE: 2024-12-02T21:06:11-03:00
+#+DRAFT: false
+
+Por muito tempo, a capacidade de responsividade que o CSS oferecia para aplicações web modernas com muitas partes de tamanho dinâmico esteve mal resolvida. Container queries trazem um novo horizonte de possibilidades para criar componentes responsivos utlizando CSS.
+
+# more
+
+* O Status-Quo
+
+Para aplicar estilos a um componente baseado no tamanho disponível para ele, tínhamos basicamente duas opções: usar JavaScript, o que aumentava o consumo de recursos e aumentava a chance de bugs e comportamentos inesperados; ou usar media queries, que também não era ideal porque o tamanho disponível para um componente nem sempre depende somente do tamanho do dispositivo, por exemplo, este tamanho disponível pode ser menor se um menu lateral estiver expandido.
+
+* Container Queries
+
+A funcionalidade de container query é bastante similar à já existente media query, porém, ao invés de se aplicar ao dispositivo (ou outra mídia), ela se aplica a um container dentro da página.
+
+Por exemplo, no seguinte trecho:
+
+#+BEGIN_SRC html
+<div id="pai">
+  <div id="filho">
+    <div id="neto">Olá!</div>
+  </div>
+</div>
+#+END_SRC
+
+=pai= é container de seus descendentes, nesse caso, =filho= e =neto=. Portanto, estilos aplicados dentro da media query do container de =pai= se aplicariam a =filho= e =neto=, mas não a =pai=. Porém, por padrão o container de um componente não aciona uma container query de tamanho, isso porque a propriedade =container-type= de um elemento é, por padrão, definida como =normal=. Os tipos possíveis dessa propriedade são:
+
++ =normal= (Padrão): Não aciona container queries de tamanho, acionando apenas container queries de estilo, que é uma funcionalidade mais nova e com menos suporte de navegadores, e não é o foco do artigo.
++ =size=: Aplica contenção de tamanho e, portanto, aciona container queries de tamanho, no eixo vertical e horizontal.
++ =inline-size=: Aplica contenção de tamanho e aciona container queries no eixo inline (horizontal ou linha, para idiomas que escrevem horizontalmente). O uso mais comum para media queries hoje é justamente neste eixo, portanto é a opção que tende a ser mais utilizada.
+
+** Exemplo
+
+Utilizando o trecho apresentado anteriormente, vamos escrever o CSS para usar container queries para aplicar uma cor diferente na div =neto= dependendo do tamanho horizontal de =pai=.
+
+#+BEGIN_SRC css
+#pai {
+    container-type: inline-size;
+    resize: horizontal; /* Para redimensionamento na demonstração */
+    overflow: auto;
+    border: 2px solid black;
+    padding: 20px;
+}
+
+#neto {
+    background: lightpink;
+    padding: 10px;
+    text-align: center;
+}
+
+@container (min-width: 30rem) {
+    #neto {
+        background: lightgreen;
+    }
+}
+#+END_SRC
+
+Para a demonstração, o pai foi tornado redimensionável horizontalmente. Ao redimensionar =pai=, independentemente se através de seu redimensionamento ou se através do redimensionamento de toda a janela, quando a largura tamanho de =pai= passa a ser menos de 30rem, o fundo de =neto= fica rosa.
+
+É importante destacar que =padding= e =text-align=, que estão sendo aplicados a =neto= fora da container query, continuam aplicados mesmo quando a condição na query é cumprida, isso porque essas propriedades não são sobrescritas no estilo dentro da query.
+
+** Containers com nome
+
+No exemplo acima, =pai= é o primeiro container que aplica contenção de tamanho no eixo inline, por isso, o tamanho dele é consultado para a query. Isso nem sempre é o comporamento desejado, então também é possível definir um nome para um container para especificar como referência na query.
+
+#+BEGIN_SRC css
+#pai {
+    container-type: inline-size;
+    container-name: menu;
+}
+
+@container menu (width > 400px) {
+    /* ... */
+}
+#+END_SRC
+
+Alternativamente, pode ser usada a sintaxe abreviada com =container=, com o mesmo efeito do código acima.
+
+#+BEGIN_SRC css
+#pai {
+    container: menu / inline-size;
+}
+#+END_SRC
+
+** Suporte em navegadores
+
+Apesar de ser um recurso relativamente novo, container queries estão disponíveis para 92.77% dos usuários, de acordo com o [[https://caniuse.com/css-container-queries][caniuse]] na data de escrita deste artigo, estando disponível em versões mais recentes dos navegadores relevantes para desktop e mobile.
+
+* Conclusão
+
+A capacidade de realizar queries em containers abre possibilidades emocionantes para o futuro do desenvolvimento de aplicações web responsivas, e já pode ser usado em sistemas que esperam que seus usuários utilizem navegadores atuais, ou que estejam dispostos a incluir um polyfill, como o desenvolvido pelo [[https://github.com/GoogleChromeLabs/container-query-polyfill][GoogleChromeLabs]].
